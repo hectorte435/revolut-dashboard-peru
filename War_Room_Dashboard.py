@@ -5,7 +5,7 @@ from google.oauth2 import service_account
 import plotly.express as px
 import plotly.graph_objects as go
 
-st.set_page_config(layout='wide', page_title='Revolut Impact: 360° Analysis', page_icon='⚡', initial_sidebar_state='collapsed')
+st.set_page_config(layout='wide', page_title='Impacto de Revolut en Perú', page_icon='⚡', initial_sidebar_state='collapsed')
 
 # CSS para ocultar menú/sidebar y estilar métricas y pestañas (Permitiendo Scroll)
 st.markdown("""
@@ -35,10 +35,12 @@ st.markdown("""
         margin-bottom: 20px;
         border-bottom: 2px solid #222;
         padding-bottom: 15px;
+        flex-wrap: wrap; /* Mobile Responsive */
     }
     
     .metric-box {
         flex: 1;
+        min-width: 200px; /* Mobile Responsive */
         background-color: #111111;
         border: 1px solid #333333;
         border-radius: 8px;
@@ -78,6 +80,7 @@ st.markdown("""
     .banca-warn { color: #FF3333; }
     .check-green { color: #00FF00; font-weight: bold; }
     .cross-red { color: #FF3333; font-weight: bold; }
+    .table-container { overflow-x: auto; width: 100%; } /* Mobile Responsive */
 </style>
 """, unsafe_allow_html=True)
 
@@ -88,15 +91,16 @@ def load_data():
         import json
         import os
         
-        # 1. Intentar usar los Secretos de la Nube (Seguridad en Producción)
-        if "gcp_service_account" in st.secrets:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        key_path = os.path.join(base_dir, "key.json")
+        
+        # 1. Si estamos en local, usar el archivo key.json
+        if os.path.exists(key_path):
+            credentials = service_account.Credentials.from_service_account_file(key_path)
+        # 2. Intentar usar los Secretos de la Nube (Seguridad en Producción)
+        else:
             key_dict = json.loads(st.secrets["gcp_service_account"])
             credentials = service_account.Credentials.from_service_account_info(key_dict)
-        # 2. Si estamos en local, usar el archivo key.json
-        elif os.path.exists("key.json"):
-            credentials = service_account.Credentials.from_service_account_file("key.json")
-        else:
-            raise Exception("No se encontraron credenciales válidas")
             
         project_id = credentials.project_id if credentials.project_id else 'revolut-en-peru'
         client = bigquery.Client(credentials=credentials, project=project_id)
@@ -109,7 +113,7 @@ def load_data():
             df = client.query(query).to_dataframe()
         return df
     except Exception as e:
-        st.error(f"Error de conexión: {e}")
+        st.error(f"Error de conexión a BigQuery: {e}")
         return pd.DataFrame()
 
 df = load_data()
@@ -128,7 +132,7 @@ if not df.empty:
 perdida_spread = total_fuga_12m * 0.025
 
 # ----------------- HEADER (KPIs FIJOS) -----------------
-st.markdown("<h1>⚡ REVOLUT THREAT INTELLIGENCE: 360°</h1>", unsafe_allow_html=True)
+st.markdown("<h1>⚡ IMPACTO DE REVOLUT EN PERÚ</h1>", unsafe_allow_html=True)
 
 st.markdown(f"""
 <div class='kpi-board'>
@@ -169,6 +173,7 @@ with tabs[0]:
     col1, col2 = st.columns([1.5, 1])
     with col1:
         st.markdown("""
+        <div class='table-container'>
         <table class='custom-table'>
             <tr><th class='left-align'>Producto</th><th>Banca Top 4 (BCP/BBVA/IBK/Scotiabank)</th><th>Cajas Municipales</th><th class='revolut-highlight'>Revolut (Benchmark)</th></tr>
             <tr><td class='left-align'>Cuenta Ahorro/Sueldo</td><td>0.00% - 1.50%</td><td>1.00% - 3.50%</td><td class='revolut-highlight'>15.00% (hasta S/ 5k)</td></tr>
@@ -177,6 +182,7 @@ with tabs[0]:
             <tr><td class='left-align'>Fondos Mutuos Conservadores</td><td>4.00% - 6.00% (Variable)</td><td>N/A</td><td class='revolut-highlight'>Rendimiento Diario Fijo</td></tr>
             <tr><td class='left-align' style='background-color:#111; font-weight:bold;'>Liquidez del Dinero</td><td class='banca-warn' colspan='2'>Inmovilizado para ganar tasas altas (>4%)</td><td class='revolut-highlight'>100% Inmediata</td></tr>
         </table>
+        </div>
         """, unsafe_allow_html=True)
     
     with col2:
@@ -191,6 +197,10 @@ with tabs[0]:
         fig.update_traces(texttemplate='%{text}%', textposition='outside')
         fig.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='#FFF', showlegend=False, height=300, margin=dict(t=20, b=0, l=0, r=0))
         st.plotly_chart(fig, use_container_width=True)
+        
+    st.markdown("""
+    <p style='color:#DDD; margin-top:20px;'><strong>Análisis:</strong> La banca peruana penaliza la liquidez (tasas cercanas al 0% en cuentas de uso diario) y obliga a congelar fondos en DPFs para obtener rendimientos de apenas 4-5%. Revolut rompe el paradigma ofreciendo 15% con liquidez inmediata, lo que desatará una fuga masiva desde las cuentas sueldo y ahorro tradicional hacia la cuenta remunerada de la <i>fintech</i>.</p>
+    """, unsafe_allow_html=True)
 
 # TAB 2: SPREAD CAMBIARIO
 with tabs[1]:
@@ -199,6 +209,7 @@ with tabs[1]:
     
     with col1:
         st.markdown("""
+        <div class='table-container'>
         <table class='custom-table'>
             <tr><th class='left-align'>Entidad / App</th><th>Spread Promedio (Venta-Compra)</th><th>Impacto en S/ 1,000 USD</th></tr>
             <tr><td class='left-align'>BCP / BBVA / Scotiabank</td><td class='banca-warn'>~ 2.50% - 3.00%</td><td class='banca-warn'>Pierdes ~$ 25 - $30 USD</td></tr>
@@ -207,6 +218,7 @@ with tabs[1]:
             <tr><td class='left-align'>Casas de Cambio Digitales (Rextie, TKambio)</td><td style='color:#00FF00'>~ 0.50% - 0.80%</td><td style='color:#00FF00'>Pierdes ~$ 5 - $8 USD</td></tr>
             <tr><td class='left-align revolut-highlight'>Revolut</td><td class='revolut-highlight'>~ 0.00% - 0.50% (Interbancario Real)</td><td class='revolut-highlight'>Pierdes $ 0 - $5 USD</td></tr>
         </table>
+        </div>
         <p style='color:#888; font-size:0.9rem; margin-top:10px;'>*Revolut suele aplicar un markup del 1% solo los fines de semana cuando los mercados están cerrados.</p>
         """, unsafe_allow_html=True)
         
@@ -219,6 +231,10 @@ with tabs[1]:
             fig.update_traces(textposition='inside', textinfo='percent+label', textfont=dict(color='#FFFFFF', size=14))
             fig.update_layout(title="Distribución de Pérdida de Clientes (Fuga de Capital)", plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='#FFF', margin=dict(t=40, b=0, l=0, r=0), height=300)
             st.plotly_chart(fig, use_container_width=True)
+            
+    st.markdown("""
+    <p style='color:#DDD; margin-top:20px;'><strong>Análisis:</strong> El spread bancario actúa como un "impuesto" implícito del 2.5% - 3.0% en cada conversión de dólares. Al ofrecer el tipo de cambio interbancario real (0.0% - 0.5%), Revolut no solo amenaza la rentabilidad de la banca tradicional, sino que podría desplazar por completo a ecosistemas <i>in-app</i> (Yape/Plin) y a las casas de cambio digitales.</p>
+    """, unsafe_allow_html=True)
 
 # TAB 3: PRÉSTAMOS
 with tabs[2]:
@@ -229,13 +245,14 @@ with tabs[2]:
         fig_loans = go.Figure()
         fig_loans.add_trace(go.Bar(name='Rango Min-Max (Banca Perú)', x=['Consumo', 'MYPEs'], y=[80, 80], base=[20, 15], marker_color='rgba(255, 51, 51, 0.5)', text=['Rango: 20%-80%', 'Rango: 15%-80%'], textposition='auto'))
         fig_loans.add_trace(go.Scatter(name='Promedio Sistema (SBS)', x=['Consumo', 'MYPEs'], y=[57.39, 55.62], mode='markers+text', marker=dict(color='#FF3333', size=12, symbol='line-ew', line=dict(width=2)), text=['57.4%', '55.6%'], textposition='top center'))
-        fig_loans.add_trace(go.Scatter(name='Revolut (Foco Prime)', x=['Consumo', 'MYPEs'], y=[8.0, 9.0], mode='markers+text', marker=dict(color='#00FFFF', size=12, symbol='line-ew', line=dict(width=2)), text=['8.0%', '9.0%'], textposition='bottom center'))
+        fig_loans.add_trace(go.Scatter(name='Revolut (Foco Prime)', x=['Consumo', 'MYPEs'], y=[8.0, 9.0], mode='markers+text', marker=dict(color='#00FFFF', size=20, symbol='diamond', line=dict(width=2, color='#FFFFFF')), text=['🔥 8.0%', '🔥 9.0%'], textposition='top center', textfont=dict(color='#00FFFF', size=16, family="Arial Black")))
         
-        fig_loans.update_layout(title="Rangos de Tasas de Interés (TEA %)", barmode='overlay', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='#FFF', height=350, yaxis_title="Tasa de Interés (%)")
+        fig_loans.update_layout(title="Rangos de Tasas de Interés (TEA %)", barmode='overlay', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='#FFF', height=350, yaxis=dict(title="Tasa de Interés (%)", range=[-5, 105]))
         st.plotly_chart(fig_loans, use_container_width=True)
 
     with col2:
         st.markdown("""
+        <div class='table-container'>
         <table class='custom-table'>
             <tr><th class='left-align'>Segmento</th><th>Tasa Sistema (Promedio)</th><th class='revolut-highlight'>Oferta Revolut (Estimado)</th></tr>
             <tr><td class='left-align'>Consumo (Bajo Riesgo / Prime)</td><td>~ 20% - 30%</td><td class='revolut-highlight'>7% - 9%</td></tr>
@@ -243,6 +260,7 @@ with tabs[2]:
             <tr><td class='left-align'>MYPEs (Formales, buen récord)</td><td>~ 15% - 30%</td><td class='revolut-highlight'>9% - 12%</td></tr>
             <tr><td class='left-align'>MYPEs (Informales/Riesgo)</td><td class='banca-warn'>50% - 80%</td><td class='revolut-highlight'>No compite</td></tr>
         </table>
+        </div>
         <br>
         <p style='color:#DDD;'><strong>Análisis:</strong> Revolut no atacará la base de la pirámide ni a clientes no bancarizados. Su estrategia es hacer "Cherry-Picking", robando a los mejores clientes (riesgo A) de los grandes bancos ofreciéndoles tasas de primer mundo.</p>
         """, unsafe_allow_html=True)
@@ -251,6 +269,7 @@ with tabs[2]:
 with tabs[3]:
     st.subheader("Cargos Ocultos y Comisiones: El fin del 'Saldo Mínimo'")
     st.markdown("""
+    <div class='table-container'>
     <table class='custom-table'>
         <tr>
             <th class='left-align'>Concepto</th>
@@ -288,6 +307,8 @@ with tabs[3]:
             <td class='revolut-highlight'>Sin Markup (Interbancario)</td>
         </tr>
     </table>
+    </div>
+    <p style='color:#DDD; margin-top:15px;'><strong>Análisis:</strong> Los bancos tradicionales sostienen parte de sus ingresos operativos mediante cobros condicionados ("saldo mínimo") y comisiones por uso de red cruzada. La estandarización de cuentas costo-cero incondicionales por parte de Revolut forzará a la banca local a eliminar estas barreras de salida.</p>
     """, unsafe_allow_html=True)
 
 # TAB 5: PROYECCIÓN MIGRACIÓN
@@ -350,3 +371,15 @@ with tabs[6]:
 </ul>
 </div>
     """, unsafe_allow_html=True)
+
+# ----------------- FOOTERS (FUENTES Y AUTOR) -----------------
+
+# 1. Fuentes en el pie de cada pestaña
+fuentes_html = "<p style='color:#777; font-size:0.85rem; text-align:center; margin-top:40px; border-top:1px solid #333; padding-top:15px;'><i>Fuentes: Superintendencia de Banca, Seguros y AFP (SBS) | Tarifarios vigentes (BCP, BBVA, Interbank, Scotiabank, CMAC) | Benchmark Revolut México.</i></p>"
+
+for i in range(7):
+    with tabs[i]:
+        st.markdown(fuentes_html, unsafe_allow_html=True)
+
+# 2. Firma del Autor al final de todo el dashboard
+st.markdown("<div style='text-align:center; margin-top: 10px; margin-bottom: 20px;'><h3 style='color:#00FFFF; letter-spacing: 1px; font-family: Arial, sans-serif;'>Elaborado por Econ. Hector Torres</h3></div>", unsafe_allow_html=True)
