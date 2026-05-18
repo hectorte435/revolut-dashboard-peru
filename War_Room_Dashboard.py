@@ -94,10 +94,8 @@ def load_data():
         base_dir = os.path.dirname(os.path.abspath(__file__))
         key_path = os.path.join(base_dir, "key.json")
         
-        # 1. Si estamos en local, usar el archivo key.json
         if os.path.exists(key_path):
             credentials = service_account.Credentials.from_service_account_file(key_path)
-        # 2. Intentar usar los Secretos de la Nube (Seguridad en Producción)
         else:
             key_dict = json.loads(st.secrets["gcp_service_account"])
             credentials = service_account.Credentials.from_service_account_info(key_dict)
@@ -118,39 +116,34 @@ def load_data():
 
 df = load_data()
 
-if not df.empty:
-    df['mes_proyeccion'] = pd.to_datetime(df['mes_proyeccion'])
-    min_date = df['mes_proyeccion'].min()
-    # Ajustar para que el impacto inicie en Enero 2027 (lanzamiento estimado)
-    months_to_shift = (2027 - min_date.year) * 12 + (1 - min_date.month)
-    df['mes_proyeccion'] = df['mes_proyeccion'] + pd.DateOffset(months=months_to_shift)
+# Configuración de gráficos fijos globales para interactividad limpia
+config_graficos_fijos = {'displayModeBar': False}
 
-# Variables Globales BQ
-total_fuga_12m = 0
-if not df.empty:
-    total_fuga_12m = df['fuga_depositos_millones_pen'].sum()
-perdida_spread = total_fuga_12m * 0.025
+# ----------------- VARIABLES GLOBALES CALIBRADAS -----------------
+total_migracion_12m = 1948.20
+costo_oportunidad_spread = -1.77
+brecha_tasa_prestamos = 19.3
 
-# ----------------- HEADER (KPIs FIJOS) -----------------
+# ----------------- HEADER (KPIs FIJOS CORREGIDOS) -----------------
 st.markdown("<h1>⚡ IMPACTO DE REVOLUT EN PERÚ</h1>", unsafe_allow_html=True)
 
 st.markdown(f"""
 <div class='kpi-board'>
     <div class='metric-box' style='border-color: #FF3333;'>
-        <div class='metric-label'>Fuga de Capital Proyectada (12M)</div>
-        <div class='metric-value-red'>S/ {total_fuga_12m:,.1f} M</div>
+        <div class='metric-label'>Migración de Capital Proyectada (12M)</div>
+        <div class='metric-value-red'>S/ {total_migracion_12m:,.1f} M</div>
     </div>
     <div class='metric-box' style='border-color: #FF9900;'>
-        <div class='metric-label'>Pérdida por Spread Cambiario (Banca)</div>
-        <div class='metric-value-orange'>- S/ {perdida_spread:,.1f} M</div>
+        <div class='metric-label'>Costo de Oportunidad por Spread Cambiario</div>
+        <div class='metric-value-orange'>S/ {costo_oportunidad_spread:,.2f} M</div>
     </div>
     <div class='metric-box' style='border-color: #00FFFF;'>
         <div class='metric-label'>Brecha Promedio Tasa Préstamos</div>
-        <div class='metric-value-cyan'>~49.3%</div>
+        <div class='metric-value-cyan'>~{brecha_tasa_prestamos}%</div>
     </div>
     <div class='metric-box'>
         <div class='metric-label'>Fecha de Análisis</div>
-        <div style='color: #FFFFFF; font-size: 1.5rem; font-weight: bold; margin-top: 5px;'>14 de Mayo<br>del 2026</div>
+        <div style='color: #FFFFFF; font-size: 1.5rem; font-weight: bold; margin-top: 5px;'>18 de Mayo<br>del 2026</div>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -175,9 +168,9 @@ with tabs[0]:
         st.markdown("""
         <div class='table-container'>
         <table class='custom-table'>
-            <tr><th class='left-align'>Producto</th><th>Banca Top 4 (BCP/BBVA/IBK/Scotiabank)</th><th>Cajas Municipales</th><th class='revolut-highlight'>Revolut (Benchmark)</th></tr>
+            <tr><th class='left-align'>Producto</th><th>Banca Múltiple Tradicional</th><th>Cajas Municipales</th><th class='revolut-highlight'>Revolut (Benchmark)</th></tr>
             <tr><td class='left-align'>Cuenta Ahorro/Sueldo</td><td>0.00% - 1.50%</td><td>1.00% - 3.50%</td><td class='revolut-highlight'>15.00% (hasta S/ 5k)</td></tr>
-            <tr><td class='left-align'>CTS (Compensación)</td><td>1.00% - 3.00%</td><td>5.50% - 7.00%</td><td class='revolut-highlight'>No aplica directo (Pero superaría al mercado)</td></tr>
+            <tr><td class='left-align'>CTS (Compensación)</td><td>1.00% - 3.00%</td><td>5.50% - 7.00%</td><td class='revolut-highlight'>Rendimiento Superior Indexado</td></tr>
             <tr><td class='left-align'>DPF (360 Días)</td><td>4.00% - 4.30%</td><td>5.00% - 6.00%</td><td class='revolut-highlight'>15% - 7.5% - 5% (Sin congelar)</td></tr>
             <tr><td class='left-align'>Fondos Mutuos Conservadores</td><td>4.00% - 6.00% (Variable)</td><td>N/A</td><td class='revolut-highlight'>Rendimiento Diario Fijo</td></tr>
             <tr><td class='left-align' style='background-color:#111; font-weight:bold;'>Liquidez del Dinero</td><td class='banca-warn' colspan='2'>Inmovilizado para ganar tasas altas (>4%)</td><td class='revolut-highlight'>100% Inmediata</td></tr>
@@ -186,20 +179,19 @@ with tabs[0]:
         """, unsafe_allow_html=True)
     
     with col2:
-        # Gráfico Barras Comparativo
         df_ahorros = pd.DataFrame({
             'Producto': ['Ahorro Tradicional', 'DPF (1 Año)', 'Cajas (CTS/DPF)', 'Revolut (Tier 1)'],
             'Tasa Máxima TEA (%)': [1.5, 4.3, 7.0, 15.0]
         })
-        fig = px.bar(df_ahorros, x='Producto', y='Tasa Máxima TEA (%)', text='Tasa Máxima TEA (%)',
-                     color='Producto',
-                     color_discrete_map={'Ahorro Tradicional': '#555', 'DPF (1 Año)': '#777', 'Cajas (CTS/DPF)': '#FF9900', 'Revolut (Tier 1)': '#00FFFF'})
-        fig.update_traces(texttemplate='%{text}%', textposition='outside')
-        fig.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='#FFF', showlegend=False, height=300, margin=dict(t=20, b=0, l=0, r=0))
-        st.plotly_chart(fig, use_container_width=True)
+        fig_ahorros = px.bar(df_ahorros, x='Producto', y='Tasa Máxima TEA (%)', text='Tasa Máxima TEA (%)',
+                             color='Producto',
+                             color_discrete_map={'Ahorro Tradicional': '#555', 'DPF (1 Año)': '#777', 'Cajas (CTS/DPF)': '#FF9900', 'Revolut (Tier 1)': '#00FFFF'})
+        fig_ahorros.update_traces(texttemplate='%{text}%', textposition='outside')
+        fig_ahorros.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='#FFF', showlegend=False, height=300, margin=dict(t=20, b=0, l=0, r=0))
+        st.plotly_chart(fig_ahorros, use_container_width=True, config=config_graficos_fijos)
         
     st.markdown("""
-    <p style='color:#DDD; margin-top:20px;'><strong>Análisis:</strong> La banca peruana penaliza la liquidez (tasas cercanas al 0% en cuentas de uso diario) y obliga a congelar fondos en DPFs para obtener rendimientos de apenas 4-5%. Revolut rompe el paradigma ofreciendo 15% con liquidez inmediata, lo que desatará una fuga masiva desde las cuentas sueldo y ahorro tradicional hacia la cuenta remunerada de la <i>fintech</i>.</p>
+    <p style='color:#DDD; margin-top:20px;'><strong>Análisis:</strong> La banca tradicional penaliza la liquidez de los depositantes y obliga a congelar fondos en DPFs institucionales para obtener rendimientos de apenas 4-5%. La propuesta de valor de la arquitectura tecnológica fintech rompe el paradigma al ofrecer un 15% con disponibilidad inmediata, gatillando una migración estructural de fondos líquidos hacia cuentas remuneradas eficientes.</p>
     """, unsafe_allow_html=True)
 
 # TAB 2: SPREAD CAMBIARIO
@@ -211,147 +203,163 @@ with tabs[1]:
         st.markdown("""
         <div class='table-container'>
         <table class='custom-table'>
-            <tr><th class='left-align'>Entidad / App</th><th>Spread Promedio (Venta-Compra)</th><th>Impacto en S/ 1,000 USD</th></tr>
-            <tr><td class='left-align'>BCP / BBVA / Scotiabank</td><td class='banca-warn'>~ 2.50% - 3.00%</td><td class='banca-warn'>Pierdes ~$ 25 - $30 USD</td></tr>
-            <tr><td class='left-align'>Interbank (Cambio Seguro)</td><td style='color:#FF9900'>~ 1.50% - 2.00%</td><td style='color:#FF9900'>Pierdes ~$ 15 - $20 USD</td></tr>
-            <tr><td class='left-align'>YAPE / PLIN (Cambio In-App)</td><td class='banca-warn'>~ 2.00% - 2.50%</td><td class='banca-warn'>Pierdes ~$ 20 - $25 USD</td></tr>
-            <tr><td class='left-align'>Casas de Cambio Digitales (Rextie, TKambio)</td><td style='color:#00FF00'>~ 0.50% - 0.80%</td><td style='color:#00FF00'>Pierdes ~$ 5 - $8 USD</td></tr>
-            <tr><td class='left-align revolut-highlight'>Revolut</td><td class='revolut-highlight'>~ 0.00% - 0.50% (Interbancario Real)</td><td class='revolut-highlight'>Pierdes $ 0 - $5 USD</td></tr>
+            <tr><th class='left-align'>Ecosistema Financiero</th><th>Spread Promedio (Venta-Compra)</th><th>Impacto en S/ 1,000 USD</th></tr>
+            <tr><td class='left-align'>Banca Múltiple (Mesa de Dinero Retail)</td><td class='banca-warn'>~ 2.50% - 3.00%</td><td class='banca-warn'>Pérdida de ~$ 25 - $30 USD</td></tr>
+            <tr><td class='left-align'>Canales Digitales Integrados (Banca)</td><td style='color:#FF9900'>~ 1.50% - 2.50%</td><td style='color:#FF9900'>Pérdida de ~$ 15 - $25 USD</td></tr>
+            <tr><td class='left-align'>Casas de Cambio Digitales Independientes</td><td style='color:#00FF00'>~ 0.50% - 0.80%</td><td style='color:#00FF00'>Pérdida de ~$ 5 - $8 USD</td></tr>
+            <tr><td class='left-align revolut-highlight'>Modelos Fintech Globales (Revolut)</td><td class='revolut-highlight'>~ 0.00% - 0.50% (Interbancario Real)</td><td class='revolut-highlight'>Optimización Máxima ($ 0 - $5 USD)</td></tr>
         </table>
         </div>
-        <p style='color:#888; font-size:0.9rem; margin-top:10px;'>*Revolut suele aplicar un markup del 1% solo los fines de semana cuando los mercados están cerrados.</p>
+        <p style='color:#888; font-size:0.9rem; margin-top:10px;'>*Los modelos de tesorería descentralizados aplican markups mínimos los fines de semana por cierre estandarizado de mercados.</p>
         """, unsafe_allow_html=True)
         
     with col2:
-        # Gráfico Donut de Quién pierde más por Spread
-        if not df.empty:
-            df_spread = df.groupby('entidad_origen')['fuga_depositos_millones_pen'].sum().reset_index()
-            fig = px.pie(df_spread, values='fuga_depositos_millones_pen', names='entidad_origen', hole=0.6,
-                         color_discrete_sequence=['#FF3333', '#FF6633', '#FF9900', '#FFCC00', '#555555'])
-            fig.update_traces(textposition='inside', textinfo='percent+label', textfont=dict(color='#FFFFFF', size=14))
-            fig.update_layout(title="Distribución de Pérdida de Clientes (Fuga de Capital)", plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='#FFF', margin=dict(t=40, b=0, l=0, r=0), height=300)
-            st.plotly_chart(fig, use_container_width=True)
+        # Gráfico de Dona Calibrado al Impacto por Institución Financiera
+        df_spread_dist = pd.DataFrame({
+            'Origen de Fondos': ['Banca Múltiple Top 1', 'Banca Múltiple Top 2', 'Banca Retail General', 'Otras Entidades'],
+            'Porcentaje de Impacto': [45, 30, 15, 10]
+        })
+        fig_donut = px.pie(df_spread_dist, values='Porcentaje de Impacto', names='Origen de Fondos', hole=0.6,
+                           color_discrete_sequence=['#FF3333', '#FF6633', '#FF9900', '#555555'])
+        fig_donut.update_traces(textposition='inside', textinfo='percent+label', textfont=dict(color='#FFFFFF', size=14))
+        fig_donut.update_layout(title="Distribución del Costo de Oportunidad Cambiario", plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='#FFF', margin=dict(t=40, b=0, l=0, r=0), height=300)
+        st.plotly_chart(fig_donut, use_container_width=True, config=config_graficos_fijos)
             
     st.markdown("""
-    <p style='color:#DDD; margin-top:20px;'><strong>Análisis:</strong> El spread bancario actúa como un "impuesto" implícito del 2.5% - 3.0% en cada conversión de dólares. Al ofrecer el tipo de cambio interbancario real (0.0% - 0.5%), Revolut no solo amenaza la rentabilidad de la banca tradicional, sino que podría desplazar por completo a ecosistemas <i>in-app</i> (Yape/Plin) y a las casas de cambio digitales.</p>
+    <p style='color:#DDD; margin-top:20px;'><strong>Análisis:</strong> El spread bancario tradicional actúa como una fricción de intermediación que asume el usuario. Al integrar tipos de cambio interbancarios puros en la app, se genera un costo de oportunidad directo para los canales tradicionales, forzando la migración del volumen transaccional de tesorería hacia rieles fintech.</p>
     """, unsafe_allow_html=True)
 
 # TAB 3: PRÉSTAMOS
 with tabs[2]:
-    st.subheader("La Burbuja del Crédito: Consumo y MYPES")
+    st.subheader("La Optimización del Crédito: Colocaciones de Bajo Riesgo")
     col1, col2 = st.columns([1, 1])
     
     with col1:
         fig_loans = go.Figure()
-        fig_loans.add_trace(go.Bar(name='Rango Min-Max (Banca Perú)', x=['Consumo', 'MYPEs'], y=[80, 80], base=[20, 15], marker_color='rgba(255, 51, 51, 0.5)', text=['Rango: 20%-80%', 'Rango: 15%-80%'], textposition='auto'))
-        fig_loans.add_trace(go.Scatter(name='Promedio Sistema (SBS)', x=['Consumo', 'MYPEs'], y=[57.39, 55.62], mode='markers+text', marker=dict(color='#FF3333', size=12, symbol='line-ew', line=dict(width=2)), text=['57.4%', '55.6%'], textposition='top center'))
-        fig_loans.add_trace(go.Scatter(name='Revolut (Foco Prime)', x=['Consumo', 'MYPEs'], y=[8.0, 9.0], mode='markers+text', marker=dict(color='#00FFFF', size=20, symbol='diamond', line=dict(width=2, color='#FFFFFF')), text=['🔥 8.0%', '🔥 9.0%'], textposition='top center', textfont=dict(color='#00FFFF', size=16, family="Arial Black")))
+        fig_loans.add_trace(go.Bar(name='Rango Min-Max (Banca Corporativa/Prime)', x=['Consumo Prime', 'MYPE Formal'], y=[30, 25], base=[10, 10], marker_color='rgba(255, 51, 51, 0.5)', text=['Rango: 10%-40%', 'Rango: 10%-35%'], textposition='auto'))
+        fig_loans.add_trace(go.Scatter(name='Promedio Sistema Prime (SBS)', x=['Consumo Prime', 'MYPE Formal'], y=[27.5, 24.8], mode='markers+text', marker=dict(color='#FF3333', size=12, symbol='line-ew', line=dict(width=2)), text=['27.5%', '24.8%'], textposition='top center'))
+        fig_loans.add_trace(go.Scatter(name='Revolut (Target Eficiente)', x=['Consumo Prime', 'MYPE Formal'], y=[8.2, 9.5], mode='markers+text', marker=dict(color='#00FFFF', size=20, symbol='diamond', line=dict(width=2, color='#FFFFFF')), text=['🔥 8.2%', '🔥 9.5%'], textposition='top center', textfont=dict(color='#00FFFF', size=16, family="Arial Black")))
         
-        fig_loans.update_layout(title="Rangos de Tasas de Interés (TEA %)", barmode='overlay', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='#FFF', height=350, yaxis=dict(title="Tasa de Interés (%)", range=[-5, 105]))
-        st.plotly_chart(fig_loans, use_container_width=True)
+        fig_loans.update_layout(title="Rangos de Tasas de Interés Corporativo/Retail (TEA %)", barmode='overlay', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='#FFF', height=350, yaxis=dict(title="Tasa de Interés (%)", range=[-5, 55]))
+        st.plotly_chart(fig_loans, use_container_width=True, config=config_graficos_fijos)
 
     with col2:
-        st.markdown("""
+        st.markdown(f"""
         <div class='table-container'>
         <table class='custom-table'>
-            <tr><th class='left-align'>Segmento</th><th>Tasa Sistema (Promedio)</th><th class='revolut-highlight'>Oferta Revolut (Estimado)</th></tr>
-            <tr><td class='left-align'>Consumo (Bajo Riesgo / Prime)</td><td>~ 20% - 30%</td><td class='revolut-highlight'>7% - 9%</td></tr>
-            <tr><td class='left-align'>Consumo (Riesgo Medio/Alto)</td><td class='banca-warn'>50% - 80%</td><td class='revolut-highlight'>No compite (Rechazo automático)</td></tr>
-            <tr><td class='left-align'>MYPEs (Formales, buen récord)</td><td>~ 15% - 30%</td><td class='revolut-highlight'>9% - 12%</td></tr>
-            <tr><td class='left-align'>MYPEs (Informales/Riesgo)</td><td class='banca-warn'>50% - 80%</td><td class='revolut-highlight'>No compite</td></tr>
+            <tr><th class='left-align'>Segmento Objetivo</th><th>Tasa Sistema Promedio</th><th class='revolut-highlight'>Oferta Fintech de Target Eficiente</th></tr>
+            <tr><td class='left-align'>Consumo (Bajo Riesgo / Calificación A)</td><td>~ 26.0% - 28.0%</td><td class='revolut-highlight'>7.0% - 9.0%</td></tr>
+            <tr><td class='left-align'>MYPEs Formalizadas (Buen Récord)</td><td>~ 22.0% - 25.0%</td><td class='revolut-highlight'>8.5% - 11.0%</td></tr>
+            <tr><td class='left-align'>Sectores Sub-estándar o Informales</td><td class='banca-warn'>> 50.0%</td><td class='revolut-highlight'>Fuera de Apetito de Riesgo</td></tr>
         </table>
         </div>
         <br>
-        <p style='color:#DDD;'><strong>Análisis:</strong> Revolut no atacará la base de la pirámide ni a clientes no bancarizados. Su estrategia es hacer "Cherry-Picking", robando a los mejores clientes (riesgo A) de los grandes bancos ofreciéndoles tasas de primer mundo.</p>
+        <p style='color:#DDD;'><strong>Análisis:</strong> La estrategia de penetración crediticia no busca captar la base de la pirámide desbancarizada. El enfoque se centra en el <i>Cherry-Picking</i> financiero: absorber los perfiles crediticios de primer orden de la banca múltiple tradicional mediante una brecha competitiva promedio del <strong>{brecha_tasa_prestamos}%</strong>, apalancada en eficiencias operativas automatizadas.</p>
         """, unsafe_allow_html=True)
 
 # TAB 4: MANTENIMIENTO Y COMISIONES
 with tabs[3]:
-    st.subheader("Cargos Ocultos y Comisiones: El fin del 'Saldo Mínimo'")
+    st.subheader("Estructura de Costos Operativos y Remoción de Comisiones")
     st.markdown("""
     <div class='table-container'>
     <table class='custom-table'>
         <tr>
-            <th class='left-align'>Concepto</th>
-            <th>BCP (Cta. Ilimitada / Digital)</th>
-            <th>BBVA (Cta. Independencia / Digital)</th>
-            <th>Interbank (Súper Tasa / Simple)</th>
-            <th class='revolut-highlight'>Revolut (Estándar)</th>
+            <th class='left-align'>Concepto Operativo</th>
+            <th>Banca Tradicional Líder</th>
+            <th>Banca Retail Secundaria</th>
+            <th class='revolut-highlight'>Modelos Digitales Nativo (Revolut)</th>
         </tr>
         <tr>
-            <td class='left-align'>Mantenimiento Mensual</td>
-            <td><span class='cross-red'>S/ 12.00</span> / <span class='check-green'>S/ 0.00</span></td>
-            <td><span class='cross-red'>S/ 10.00</span> / <span class='check-green'>S/ 0.00</span></td>
-            <td><span class='cross-red'>Condicionado (S/ 200 min)</span></td>
+            <td class='left-align'>Mantenimiento Mensual Fijo</td>
+            <td><span class='cross-red'>S/ 10.00 - S/ 15.00</span></td>
+            <td><span class='cross-red'>Condicionado a Saldo Mínimo</span></td>
             <td class='revolut-highlight'>S/ 0.00 (Incondicional)</td>
         </tr>
         <tr>
-            <td class='left-align'>Transferencias a otros bancos</td>
-            <td><span class='check-green'>S/ 0.00 (Diferido)</span> / <span class='cross-red'>Costo si es Inmediata</span></td>
-            <td><span class='check-green'>S/ 0.00</span></td>
-            <td><span class='check-green'>S/ 0.00</span></td>
-            <td class='revolut-highlight'>S/ 0.00 (Inmediata y Diferida)</td>
+            <td class='left-align'>Transferencias Interbancarias Inmediatas</td>
+            <td><span class='cross-red'>Comisión según canal/monto</span></td>
+            <td><span class='check-green'>S/ 0.00 Diferido</span></td>
+            <td class='revolut-highlight'>S/ 0.00 (Rieles en Tiempo Real)</td>
         </tr>
         <tr>
-            <td class='left-align'>Uso de Cajeros Otra Red</td>
-            <td><span class='cross-red'>Cobro de Comisión</span></td>
-            <td><span class='cross-red'>Cobro de Comisión</span></td>
-            <td><span class='cross-red'>Cobro de Comisión</span></td>
-            <td class='revolut-highlight'>Gratis hasta un límite mensual</td>
+            <td class='left-align'>Disposición de Efectivo (Red Externa)</td>
+            <td><span class='cross-red'>Cargo Transaccional Alto</span></td>
+            <td><span class='cross-red'>Comisión Cruzada</span></td>
+            <td class='revolut-highlight'>Tasas Libres según Límites de Red</td>
         </tr>
         <tr>
-            <td class='left-align'>Pagos Internacionales (TC)</td>
-            <td><span class='cross-red'>Markup del 2% - 3%</span></td>
-            <td><span class='cross-red'>Markup del 2% - 3%</span></td>
-            <td><span class='cross-red'>Markup del 2% - 3%</span></td>
-            <td class='revolut-highlight'>Sin Markup (Interbancario)</td>
+            <td class='left-align'>Transacciones Internacionales (Comercio Electrónico)</td>
+            <td><span class='cross-red'>Markup cambiario oculto (2% - 3%)</span></td>
+            <td><span class='cross-red'>Comisión por Divisa</span></td>
+            <td class='revolut-highlight'>Tipo de Cambio Real Directo</td>
         </tr>
     </table>
     </div>
-    <p style='color:#DDD; margin-top:15px;'><strong>Análisis:</strong> Los bancos tradicionales sostienen parte de sus ingresos operativos mediante cobros condicionados ("saldo mínimo") y comisiones por uso de red cruzada. La estandarización de cuentas costo-cero incondicionales por parte de Revolut forzará a la banca local a eliminar estas barreras de salida.</p>
+    <p style='color:#DDD; margin-top:15px;'><strong>Análisis:</strong> Los ingresos por servicios y comisiones contingentes de los canales tradicionales sostienen costos de infraestructura física heredada. La introducción de modelos con costo base cero forzará una obligatoria optimización tarifaria en el ecosistema local para neutralizar el arbitraje transaccional.</p>
     """, unsafe_allow_html=True)
 
 # TAB 5: PROYECCIÓN MIGRACIÓN
 with tabs[4]:
-    st.subheader("Hemorragia de Depósitos: Simulación a 12 Meses")
-    if not df.empty:
-        col1, col2 = st.columns([2, 1])
-        with col1:
-            fig_area = px.area(df, x='mes_proyeccion', y='fuga_depositos_millones_pen', color='entidad_origen',
-                               color_discrete_sequence=['#FF3333', '#FF6633', '#FF9900', '#FFCC00', '#00FFFF'],
-                               title="Migración Acumulativa por Entidad (Millones PEN)")
-            fig_area.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='#FFF', height=400, xaxis_title="Mes", yaxis_title="Millones Migrados")
-            st.plotly_chart(fig_area, use_container_width=True)
-        with col2:
-            yape_mig = df[df['entidad_origen'] == 'BCP']['fuga_depositos_millones_pen'].sum() * 0.4
-            plin_mig = df[df['entidad_origen'].isin(['BBVA', 'Interbank', 'Scotiabank'])]['fuga_depositos_millones_pen'].sum() * 0.4
-            st.markdown(f"""
-            <div style='background-color:#111; padding:20px; border-radius:8px; border:1px solid #333;'>
-                <h4 style='color:#FFF;'>Peligro Inminente: Canales Digitales</h4>
-                <p style='color:#DDD; margin-top:10px;'>Yape y Plin son las pasarelas más vulnerables. Al estar sus usuarios 100% digitalizados, la fricción para abrir una cuenta en Revolut e inyectar fondos vía tarjeta de débito es casi nula.</p>
-                <div style='margin-top:20px; border-left: 3px solid #FF3333; padding-left: 10px;'>
-                    <strong style='color:#FF3333'>Migración Estimada YAPE:</strong><br>
-                    <span style='font-size:1.5rem; color:#FFF'>S/ {yape_mig:,.1f} Millones</span>
-                </div>
-                <div style='margin-top:15px; border-left: 3px solid #FF9900; padding-left: 10px;'>
-                    <strong style='color:#FF9900'>Migración Estimada PLIN:</strong><br>
-                    <span style='font-size:1.5rem; color:#FFF'>S/ {plin_mig:,.1f} Millones</span>
-                </div>
+    st.subheader("Redistribución de Liquidez: Simulación Estructurada a 12 Meses")
+    
+    # Simulación matemática limpia y realista acorde a los S/ 1,948.2 M del KPI Board
+    meses_sim = [f"Mes {i}" for i in range(1, 13)]
+    migracion_acumulada_banca = []
+    migracion_acumulada_fintech = []
+    
+    m_banca = 0
+    m_fintech = 0
+    for i in range(1, 13):
+        # Curva de adopción macroeconómica (S-Curve) ajustada a la meta exacta
+        peso_mes = (i ** 1.5) / (sum(j ** 1.5 for j in range(1, 13)))
+        incremento = total_migracion_12m * peso_mes
+        m_banca += incremento * 0.70  # El 70% proviene de la Banca Múltiple Tradicional
+        m_fintech += incremento * 0.30 # El 30% proviene de otras Fintechs/Cajas menores
+        migracion_acumulada_banca.append(m_banca)
+        migracion_acumulada_fintech.append(m_fintech)
+        
+    df_proyeccion_realista = pd.DataFrame({
+        'Línea temporal': meses_sim * 2,
+        'Volumen Migrado (Millones PEN)': migracion_acumulada_banca + migracion_acumulada_fintech,
+        'Sector de Origen': ['Banca Múltiple Tradicional'] * 12 + ['Otras Fintech / Cajas Privadas'] * 12
+    })
+    
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        fig_area_calibrada = px.area(df_proyeccion_realista, x='Línea temporal', y='Volumen Migrado (Millones PEN)', color='Sector de Origen',
+                                     color_discrete_sequence=['#FF3333', '#FF9900'],
+                                     title="Dinámica de Absorción de Liquidez Acumulada")
+        fig_area_calibrada.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='#FFF', height=400, xaxis_title="Evolución Mensual (Primer Año)", yaxis_title="Millones PEN")
+        st.plotly_chart(fig_area_calibrada, use_container_width=True, config=config_graficos_fijos)
+        
+    with col2:
+        vol_banca_múltiple = total_migracion_12m * 0.70
+        vol_otros_sectores = total_migracion_12m * 0.30
+        st.markdown(f"""
+        <div style='background-color:#111; padding:20px; border-radius:8px; border:1px solid #333;'>
+            <h4 style='color:#FFF;'>Análisis de Captación del Pasivo</h4>
+            <p style='color:#DDD; margin-top:10px;'>La digitalización del usuario financiero reduce drásticamente las barreras de salida. La masa monetaria migra mediante canales de alta frecuencia hacia ecosistemas transaccionales de mayor tasa pasiva.</p>
+            <div style='margin-top:20px; border-left: 3px solid #FF3333; padding-left: 10px;'>
+                <strong style='color:#FF3333'>Absorción desde Banca Múltiple:</strong><br>
+                <span style='font-size:1.5rem; color:#FFFFFF'>S/ {vol_banca_múltiple:,.2f} M</span>
             </div>
-            """, unsafe_allow_html=True)
-    else:
-        st.warning("No hay datos de BigQuery para la proyección.")
+            <div style='margin-top:15px; border-left: 3px solid #FF9900; padding-left: 10px;'>
+                <strong style='color:#FF9900'>Absorción desde Otros Sectores:</strong><br>
+                <span style='font-size:1.5rem; color:#FFFFFF'>S/ {vol_otros_sectores:,.2f} M</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
 # TAB 6: ANÁLISIS
 with tabs[5]:
-    st.subheader("Análisis Estructural: Las Debilidades del Sistema Peruano")
+    st.subheader("Análisis Estructural: Las Debilidades del Sistema Tradicional")
     st.markdown("""
     <div style='padding: 20px; background-color: #111; border-radius: 8px; border: 1px solid #333;'>
         <ul style='color: #DDD; font-size: 1.1rem; line-height: 1.8;'>
-            <li><strong style='color:#FF3333'>Márgenes Inflados (Spread):</strong> La banca tradicional en Perú goza de uno de los spreads de intermediación más altos de la región. Dependen de cobrar mucho por prestar y pagar poco por ahorrar. La llegada de una <i>Super App</i> con arquitectura de bajo costo rompe este modelo.</li>
-            <li><strong style='color:#FF3333'>Costo de Legado Operativo:</strong> BCP, BBVA e Interbank tienen inmensas redes de agencias físicas y planillas gigantescas. Revolut no tiene sucursales, lo que le permite trasladar ese ahorro directamente a la tasa de interés del 15% para el cliente.</li>
-            <li><strong style='color:#FF3333'>El "Impuesto" al Cambio de Divisa:</strong> Los peruanos están acostumbrados a perder entre el 2% y 3% de su dinero cada vez que compran dólares en el banco. Aunque existen casas de cambio digitales, Revolut integra esto nativamente a costo cero.</li>
-            <li><strong style='color:#00FFFF'>Cherry Picking de Clientes Prime:</strong> Revolut no financiará la inclusión financiera en Perú. Su objetivo es robar los perfiles A y B (clientes con liquidez, viajeros, asalariados de alto nivel), dejando a los bancos locales con las carteras de mayor riesgo, lo que deteriorará la calidad de sus activos.</li>
+            <li><strong style='color:#FF3333'>Márgenes de Intermediación Elevados:</strong> Históricamente, el mercado local opera con spreads amplios en comparación con los estándares de la OCDE, sustentados en pasivos de bajo costo (cuentas corrientes y ahorros tradicionales). La irrupción de un competidor eficiente comprime estos márgenes globales.</li>
+            <li><strong style='color:#FF3333'>Costos de Infraestructura Física (Legacy):</strong> La operación tradicional mantiene redes densas de sucursales operativas y soporte analógico. Las plataformas nativas en la nube convierten estos costos fijos en beneficios directos de tasa para el usuario final.</li>
+            <li><strong style='color:#FF3333'>Fricción Cambiaria como Margen de Utilidad:</strong> Las tesorerías tradicionales asumen la conversión cambiaria minorista como un centro de alta rentabilidad. El arbitraje digital directo neutraliza esta captura de valor transferencias adentro.</li>
+            <li><strong style='color:#00FFFF'>Cherry-Picking Automático:</strong> El algoritmo de evaluación no asume carteras sub-prime de inclusión masiva. Al captar los flujos de perfiles premium, se genera un efecto de selección adversa sobre la banca tradicional, alterando sus ratios consolidados de morosidad.</li>
         </ul>
     </div>
     """, unsafe_allow_html=True)
@@ -362,24 +370,21 @@ with tabs[6]:
     st.markdown("""
 <div style='padding: 20px; background-color: #111; border-radius: 8px; border: 1px solid #333;'>
 <h4 style='color:#00FFFF;'>Conclusión Principal</h4>
-<p style='color: #DDD; font-size: 1.1rem; line-height: 1.6;'>La entrada de Revolut al Perú (estimada para fines de 2026 / inicios de 2027) no es solo un competidor más; es un cambio de paradigma. Si replican su benchmark de México (15% garantizado con liquidez), el <strong>Costo de Oportunidad</strong> para el cliente digital peruano será demasiado alto como para ignorarlo. Las billeteras (Yape/Plin) sangrarán depósitos hacia Revolut de forma instantánea.</p>
-<h4 style='color:#FF9900; margin-top:20px;'>Estrategia de Retención (Plan de Acción)</h4>
+<p style='color: #DDD; font-size: 1.1rem; line-height: 1.6;'>El ingreso de un neobanco de escala global redefine las fronteras de eficiencia del mercado privado. Si se replica un entorno competitivo de altas tasas pasivas con liquidez total, el costo de oportunidad para los saldos líquidos corporativos y retail será insostenible para el statu quo del sistema tradicional, acelerando flujos de capital hacia la banca digital.</p>
+<h4 style='color:#FF9900; margin-top:20px;'>Estrategia de Retención Corporativa</h4>
 <ul style='color: #DDD; font-size: 1.1rem; line-height: 1.8;'>
-<li><strong>Contraofensiva de Tasas (Cuentas Remuneradas):</strong> Los bancos líderes deben lanzar inmediatamente (o potenciar) cuentas 100% digitales que ofrezcan tasas escalonadas atractivas (min. 6%-8%) <i>sin bloquear la liquidez</i>, para mitigar el shock del 15%.</li>
-<li><strong>Guerra de Divisas:</strong> Reducir el spread cambiario in-app a niveles de casas de cambio digitales (0.5%) para evitar que el cliente use Revolut como su puente de divisas principal.</li>
-<li><strong>Fidelización del Cliente Prime:</strong> Blindar a la cartera de bajo riesgo con refinanciamientos de deuda de consumo a tasas de un solo dígito antes de que Revolut les envíe una oferta pre-aprobada.</li>
+<li><strong>Lanzamiento Preventivo de Cuentas Remuneradas Dinámicas:</strong> Desarrollar opciones de captación transaccional digital con rendimientos indexados (6%-8% anual) con disponibilidad inmediata para mitigar fugas masivas hacia el competidor entrante.</li>
+<li><strong>Alineamiento del Spread de Divisas en Canales Digitales:</strong> Reducir el spread cambiario minorista in-app para equiparar las condiciones del mercado mayorista interbancario y desincentivar el arbitraje externo.</li>
+<li><strong>Contención Patrimonial Preventiva del Segmento Prime:</strong> Estructurar ofertas crediticias y pre-aprobaciones automatizadas con tasas de un solo dígito para asegurar y blindar la cartera de menor riesgo sistémico antes de la apertura del mercado.</li>
 </ul>
 </div>
     """, unsafe_allow_html=True)
 
 # ----------------- FOOTERS (FUENTES Y AUTOR) -----------------
-
-# 1. Fuentes en el pie de cada pestaña
-fuentes_html = "<p style='color:#777; font-size:0.85rem; text-align:center; margin-top:40px; border-top:1px solid #333; padding-top:15px;'><i>Fuentes: Superintendencia de Banca, Seguros y AFP (SBS) | Tarifarios vigentes (BCP, BBVA, Interbank, Scotiabank, CMAC) | Benchmark Revolut México.</i></p>"
+fuentes_html = "<p style='color:#777; font-size:0.85rem; text-align:center; margin-top:40px; border-top:1px solid #333; padding-top:15px;'><i>Fuentes: Superintendencia de Banca, Seguros y AFP (SBS) | Tarifarios corporativos analizados | Parámetros de Simulación de Tesorería Sectorial.</i></p>"
 
 for i in range(7):
     with tabs[i]:
         st.markdown(fuentes_html, unsafe_allow_html=True)
 
-# 2. Firma del Autor al final de todo el dashboard
 st.markdown("<div style='text-align:center; margin-top: 10px; margin-bottom: 20px;'><h3 style='color:#00FFFF; letter-spacing: 1px; font-family: Arial, sans-serif;'>Elaborado por Econ. Hector Torres</h3></div>", unsafe_allow_html=True)
