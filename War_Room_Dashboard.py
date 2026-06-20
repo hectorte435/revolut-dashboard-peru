@@ -5,6 +5,8 @@ from google.oauth2 import service_account
 import plotly.express as px
 import plotly.graph_objects as go
 
+# Verificado: Acceso de edición confirmado en el nuevo directorio.
+
 st.set_page_config(layout='wide', page_title='Impacto de Revolut en Perú', page_icon='⚡', initial_sidebar_state='collapsed')
 
 # CSS para ocultar menú/sidebar y estilar métricas y pestañas (Permitiendo Scroll)
@@ -116,8 +118,8 @@ def load_data():
 
 df = load_data()
 
-# Configuración de gráficos fijos globales para interactividad limpia
-config_graficos_fijos = {'displayModeBar': False}
+# Configuración de gráficos estáticos para evitar interferencias con el zoom y scroll en móviles
+config_graficos_fijos = {'staticPlot': True}
 
 # ----------------- VARIABLES GLOBALES CALIBRADAS -----------------
 total_migracion_12m = 1948.20
@@ -142,8 +144,8 @@ st.markdown(f"""
         <div class='metric-value-cyan'>~{brecha_tasa_prestamos}%</div>
     </div>
     <div class='metric-box'>
-        <div class='metric-label'>Fecha de Análisis</div>
-        <div style='color: #FFFFFF; font-size: 1.5rem; font-weight: bold; margin-top: 5px;'>18 de Mayo<br>del 2026</div>
+        <div class='metric-label'>Fecha de Actualización</div>
+        <div style='color: #FFFFFF; font-size: 1.5rem; font-weight: bold; margin-top: 5px;'>20 de Junio<br>del 2026</div>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -236,11 +238,63 @@ with tabs[2]:
     
     with col1:
         fig_loans = go.Figure()
-        fig_loans.add_trace(go.Bar(name='Rango Min-Max (Banca Corporativa/Prime)', x=['Consumo Prime', 'MYPE Formal'], y=[30, 25], base=[10, 10], marker_color='rgba(255, 51, 51, 0.5)', text=['Rango: 10%-40%', 'Rango: 10%-35%'], textposition='auto'))
-        fig_loans.add_trace(go.Scatter(name='Promedio Sistema Prime (SBS)', x=['Consumo Prime', 'MYPE Formal'], y=[27.5, 24.8], mode='markers+text', marker=dict(color='#FF3333', size=12, symbol='line-ew', line=dict(width=2)), text=['27.5%', '24.8%'], textposition='top center'))
-        fig_loans.add_trace(go.Scatter(name='Revolut (Target Eficiente)', x=['Consumo Prime', 'MYPE Formal'], y=[8.2, 9.5], mode='markers+text', marker=dict(color='#00FFFF', size=20, symbol='diamond', line=dict(width=2, color='#FFFFFF')), text=['🔥 8.2%', '🔥 9.5%'], textposition='top center', textfont=dict(color='#00FFFF', size=16, family="Arial Black")))
         
-        fig_loans.update_layout(title="Rangos de Tasas de Interés Corporativo/Retail (TEA %)", barmode='overlay', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='#FFF', height=350, yaxis=dict(title="Tasa de Interés (%)", range=[-5, 55]))
+        # Rango Min-Max (Banca Tradicional)
+        fig_loans.add_trace(go.Bar(
+            name='Rango Min-Max (Banca Tradicional)', 
+            x=['Consumo Prime', 'MYPE Formal'], 
+            y=[30, 25], 
+            base=[10, 10], 
+            marker_color='rgba(255, 51, 51, 0.35)', 
+            marker_line=dict(color='#FF3333', width=1.5),
+            text=['Rango: 10% - 40%', 'Rango: 10% - 35%'], 
+            textposition='outside',
+            textfont=dict(color='#FFFFFF', size=12)
+        ))
+        
+        # Promedio Sistema Prime (SBS)
+        fig_loans.add_trace(go.Scatter(
+            name='Promedio Sistema Prime (SBS)', 
+            x=['Consumo Prime', 'MYPE Formal'], 
+            y=[27.5, 24.8], 
+            mode='markers+text', 
+            marker=dict(color='#FFCC00', size=12, symbol='x'), 
+            text=['Promedio: 27.5%', 'Promedio: 24.8%'], 
+            textposition='top center',
+            textfont=dict(color='#FFCC00', size=11)
+        ))
+        
+        # Revolut (Target Eficiente)
+        fig_loans.add_trace(go.Scatter(
+            name='Revolut (Target Eficiente)', 
+            x=['Consumo Prime', 'MYPE Formal'], 
+            y=[8.2, 9.5], 
+            mode='markers+text', 
+            marker=dict(color='#00FFFF', size=16, symbol='diamond', line=dict(width=2, color='#FFFFFF')), 
+            text=['⚡ 8.2% TEA', '⚡ 9.5% TEA'], 
+            textposition='bottom center',
+            textfont=dict(color='#00FFFF', size=13)
+        ))
+        
+        fig_loans.update_layout(
+            title="Rangos de Tasas de Interés Corporativo/Retail (TEA %)", 
+            barmode='overlay', 
+            plot_bgcolor='rgba(0,0,0,0)', 
+            paper_bgcolor='rgba(0,0,0,0)', 
+            font_color='#FFF', 
+            height=420, 
+            yaxis=dict(title="Tasa de Interés (%)", range=[0, 50], gridcolor='#222222'),
+            xaxis=dict(gridcolor='#222222'),
+            legend=dict(
+                orientation="h",
+                yanchor="top",
+                y=-0.2,
+                xanchor="center",
+                x=0.5,
+                bgcolor="rgba(0,0,0,0)"
+            ),
+            margin=dict(t=40, b=80, l=10, r=10)
+        )
         st.plotly_chart(fig_loans, use_container_width=True, config=config_graficos_fijos)
 
     with col2:
