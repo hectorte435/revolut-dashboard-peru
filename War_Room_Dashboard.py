@@ -86,68 +86,32 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ----------------- DATOS -----------------
-# ----------------- DATOS CON AUTORREPARACIÓN DE BIGQUERY -----------------
+# ----------------- DATOS LOCALES (SIN CONEXIÓN A BIGQUERY) -----------------
 @st.cache_data
 def load_data():
-    import json
-    import os
+    # Generar directamente los datos de simulación en memoria para evitar llamadas a la nube
+    meses_sim = [f"Mes {i}" for i in range(1, 13)]
+    total_migracion_12m = 1948.20
+    migracion_acumulada_banca = []
+    migracion_acumulada_fintech = []
+    m_banca = 0
+    m_fintech = 0
     
-    # 1. Configuración de credenciales y cliente de BigQuery
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    key_path = os.path.join(base_dir, "key.json")
+    for i in range(1, 13):
+        peso_mes = (i ** 1.5) / (sum(j ** 1.5 for j in range(1, 13)))
+        incremento = total_migracion_12m * peso_mes
+        m_banca += incremento * 0.70
+        m_fintech += incremento * 0.30
+        migracion_acumulada_banca.append(m_banca)
+        migracion_acumulada_fintech.append(m_fintech)
+        
+    df_local = pd.DataFrame({
+        'Línea temporal': meses_sim * 2,
+        'Volumen Migrado (Millones PEN)': migracion_acumulada_banca + migracion_acumulada_fintech,
+        'Sector de Origen': ['Banca Múltiple Tradicional'] * 12 + ['Otras Fintech / Cajas Privadas'] * 12
+    })
     
-    if os.path.exists(key_path):
-        credentials = service_account.Credentials.from_service_account_file(key_path)
-    else:
-        key_dict = json.loads(st.secrets["gcp_service_account"])
-        credentials = service_account.Credentials.from_service_account_info(key_dict)
-        
-    project_id = credentials.project_id if credentials.project_id else 'revolut-en-peru'
-    client = bigquery.Client(credentials=credentials, project=project_id)
-    table_id = f"{project_id}.analisis_mercado.fuga_depositos"
-    
-    # 2. Intentar leer la tabla desde BigQuery
-    try:
-        query = f"SELECT * FROM `{project_id}.analisis_mercado.fuga_depositos`"
-        df = client.query(query).to_dataframe()
-        return df
-    except Exception as e:
-        # Si la tabla no existe en BigQuery (Error 404), procedemos a recrearla automáticamente
-        st.warning("La tabla no existía en BigQuery. Iniciando restauración automática de datos...")
-        
-        # Generar los datos en memoria para la simulación
-        meses_sim = [f"Mes {i}" for i in range(1, 13)]
-        total_migracion_12m = 1948.20
-        migracion_acumulada_banca = []
-        migracion_acumulada_fintech = []
-        m_banca = 0
-        m_fintech = 0
-        
-        for i in range(1, 13):
-            peso_mes = (i ** 1.5) / (sum(j ** 1.5 for j in range(1, 13)))
-            incremento = total_migracion_12m * peso_mes
-            m_banca += incremento * 0.70
-            m_fintech += incremento * 0.30
-            migracion_acumulada_banca.append(m_banca)
-            migracion_acumulada_fintech.append(m_fintech)
-            
-        df_restaurar = pd.DataFrame({
-            'Línea temporal': meses_sim * 2,
-            'Volumen Migrado (Millones PEN)': migracion_acumulada_banca + migracion_acumulada_fintech,
-            'Sector de Origen': ['Banca Múltiple Tradicional'] * 12 + ['Otras Fintech / Cajas Privadas'] * 12
-        })
-        
-        try:
-            # Subir y crear la tabla en BigQuery con los tipos de columna correctos
-            job_config = bigquery.LoadJobConfig(write_disposition="WRITE_TRUNCATE")
-            job = client.load_table_from_dataframe(df_restaurar, table_id, job_config=job_config)
-            job.result()  # Espera a que termine de cargarse en Google Cloud
-            st.success("¡Tabla 'fuga_depositos' recreada exitosamente en BigQuery, Señor! Recargue la página para actualizar.")
-            return df_restaurar
-        except Exception as upload_error:
-            st.error(f"Error al intentar recrear la tabla en BigQuery: {upload_error}")
-            return df_restaurar
+    return df_local
 
 df = load_data()
 
