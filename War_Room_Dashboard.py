@@ -124,7 +124,7 @@ costo_oportunidad_spread = -1.77
 brecha_tasa_prestamos = 19.3
 
 # ----------------- HEADER (KPIs FIJOS CORREGIDOS) -----------------
-st.markdown("<h1>⚡ IMPACTO DE REVOLUT EN PERÚ</h1>", unsafe_allow_html=True)
+st.markdown("<h1>⚡ POTENCIAL IMPACTO DE REVOLUT EN PERÚ</h1>", unsafe_allow_html=True)
 
 st.markdown(f"""
 <div class='kpi-board'>
