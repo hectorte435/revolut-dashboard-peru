@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 
 # Verificado: Acceso de edición confirmado en el nuevo directorio.
 
-st.set_page_config(layout='wide', page_title='Impacto de Revolut en Perú', page_icon='⚡', initial_sidebar_state='collapsed')
+st.set_page_config(layout='wide', page_title='Potencial Impacto de Revolut en Perú', page_icon='⚡', initial_sidebar_state='collapsed')
 
 # CSS para ocultar menú/sidebar y estilar métricas y pestañas (Permitiendo Scroll)
 st.markdown("""
