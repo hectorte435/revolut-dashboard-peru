@@ -88,9 +88,10 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ----------------- PARÁMETROS MACROECONÓMICOS CALIBRADOS (SBS & MERCADO 2026) -----------------
-total_migracion_12m = 1948.20
-costo_oportunidad_spread = -1.77
+# ----------------- PARÁMETROS MACROECONÓMICOS CALIBRADOS (SBS & BENCHMARK MÉXICO) -----------------
+# Calibrado a Escenario Base de Alta Probabilidad: ~280k usuarios con ticket promedio de S/ 3,850
+total_migracion_12m = 1080.50
+costo_oportunidad_spread = -0.98
 brecha_tasa_prestamos = 18.5
 
 # ----------------- MOTOR DE SIMULACIÓN EN MEMORIA -----------------
@@ -412,8 +413,8 @@ with tabs[4]:
         vol_otros_sectores = total_migracion_12m * 0.30
         st.markdown(f"""
         <div style='background-color:#111; padding:20px; border-radius:8px; border:1px solid #333;'>
-            <h4 style='color:#FFF;'>Análisis de Captación del Pasivo</h4>
-            <p style='color:#DDD; margin-top:10px;'>La digitalización del usuario financiero reduce drásticamente las barreras de salida. La masa monetaria migra mediante canales de alta frecuencia hacia ecosistemas transaccionales de mayor tasa pasiva.</p>
+            <h4 style='color:#FFF;'>Calibración del Pasivo (Escenario de Alta Probabilidad)</h4>
+            <p style='color:#DDD; margin-top:10px;'>Calibrado a escala macroeconómica frente al benchmark de México (1M de usuarios en 9 meses). Para el mercado peruano se modela una adopción prudente de <strong>~280,000 ahorristas</strong> en su primer año con un saldo promedio de <strong>S/ 3,850</strong>, absorbiendo el <strong>0.30%</strong> de los depósitos del sistema financiero.</p>
             <div style='margin-top:20px; border-left: 3px solid #FF3333; padding-left: 10px;'>
                 <strong style='color:#FF3333'>Absorción desde Banca Múltiple:</strong><br>
                 <span style='font-size:1.5rem; color:#FFFFFF'>S/ {vol_banca_multiple:,.2f} M</span>
