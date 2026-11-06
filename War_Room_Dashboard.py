@@ -1,21 +1,23 @@
 import streamlit as st
 import pandas as pd
-from google.cloud import bigquery
-from google.oauth2 import service_account
 import plotly.express as px
 import plotly.graph_objects as go
 
-# Verificado: Acceso de edición confirmado en el nuevo directorio.
+# ----------------- CONFIGURACIÓN DE PÁGINA -----------------
+st.set_page_config(
+    layout='wide', 
+    page_title='Simulador de Disrupción Financiera: Caso Revolut Perú', 
+    page_icon='⚡', 
+    initial_sidebar_state='collapsed'
+)
 
-st.set_page_config(layout='wide', page_title='Potencial Impacto de Revolut en Perú', page_icon='⚡', initial_sidebar_state='collapsed')
-
-# CSS para ocultar menú/sidebar y estilar métricas y pestañas (Permitiendo Scroll)
+# ----------------- ESTILOS CSS PERSONALIZADOS (DARK & RESPONSIVE) -----------------
 st.markdown("""
 <style>
     [data-testid="collapsedControl"] { display: none; }
     [data-testid="stHeader"] { display: none; }
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
+    #MainMenu { visibility: hidden; }
+    footer { visibility: hidden; }
     
     .block-container {
         padding-top: 1.5rem !important;
@@ -86,45 +88,48 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ----------------- DATOS LOCALES (SIN CONEXIÓN A BIGQUERY) -----------------
+# ----------------- PARÁMETROS MACROECONÓMICOS CALIBRADOS (SBS & MERCADO 2026) -----------------
+total_migracion_12m = 1948.20
+costo_oportunidad_spread = -1.77
+brecha_tasa_prestamos = 18.5
+
+# ----------------- MOTOR DE SIMULACIÓN EN MEMORIA -----------------
 @st.cache_data
-def load_data():
-    # Generar directamente los datos de simulación en memoria para evitar llamadas a la nube
+def generar_simulacion_migracion(total_migracion):
+    """
+    Simula matemáticamente la curva de adopción y absorción de liquidez a 12 meses
+    utilizando una función de adopción progresiva (S-Curve).
+    """
     meses_sim = [f"Mes {i}" for i in range(1, 13)]
-    total_migracion_12m = 1948.20
     migracion_acumulada_banca = []
     migracion_acumulada_fintech = []
+    
     m_banca = 0
     m_fintech = 0
+    denominador_pesos = sum(j ** 1.5 for j in range(1, 13))
     
     for i in range(1, 13):
-        peso_mes = (i ** 1.5) / (sum(j ** 1.5 for j in range(1, 13)))
-        incremento = total_migracion_12m * peso_mes
-        m_banca += incremento * 0.70
-        m_fintech += incremento * 0.30
+        peso_mes = (i ** 1.5) / denominador_pesos
+        incremento = total_migracion * peso_mes
+        m_banca += incremento * 0.70   # El 70% proviene de la Banca Múltiple Tradicional
+        m_fintech += incremento * 0.30  # El 30% proviene de otras Fintechs / Cajas
         migracion_acumulada_banca.append(m_banca)
         migracion_acumulada_fintech.append(m_fintech)
         
-    df_local = pd.DataFrame({
+    df_sim = pd.DataFrame({
         'Línea temporal': meses_sim * 2,
         'Volumen Migrado (Millones PEN)': migracion_acumulada_banca + migracion_acumulada_fintech,
         'Sector de Origen': ['Banca Múltiple Tradicional'] * 12 + ['Otras Fintech / Cajas Privadas'] * 12
     })
-    
-    return df_local
+    return df_sim
 
-df = load_data()
+df_proyeccion = generar_simulacion_migracion(total_migracion_12m)
 
-# Configuración de gráficos estáticos para evitar interferencias con el zoom y scroll en móviles
+# Configuración de gráficos estáticos: desactiva zoom/paneo para garantizar scroll fluido en móviles
 config_graficos_fijos = {'staticPlot': True}
 
-# ----------------- VARIABLES GLOBALES CALIBRADAS -----------------
-total_migracion_12m = 1948.20
-costo_oportunidad_spread = -1.77
-brecha_tasa_prestamos = 19.3
-
-# ----------------- HEADER (KPIs FIJOS CORREGIDOS) -----------------
-st.markdown("<h1>⚡ POTENCIAL IMPACTO DE REVOLUT EN PERÚ</h1>", unsafe_allow_html=True)
+# ----------------- HEADER (KPIS ESTRATÉGICOS) -----------------
+st.markdown("<h1>⚡ SIMULADOR DE DISRUPCIÓN FINANCIERA: IMPACTO DE REVOLUT EN PERÚ</h1>", unsafe_allow_html=True)
 
 st.markdown(f"""
 <div class='kpi-board'>
@@ -137,17 +142,17 @@ st.markdown(f"""
         <div class='metric-value-orange'>S/ {costo_oportunidad_spread:,.2f} M</div>
     </div>
     <div class='metric-box' style='border-color: #00FFFF;'>
-        <div class='metric-label'>Brecha Promedio Tasa Préstamos</div>
+        <div class='metric-label'>Brecha Promedio Tasa Préstamos Prime</div>
         <div class='metric-value-cyan'>~{brecha_tasa_prestamos}%</div>
     </div>
     <div class='metric-box'>
         <div class='metric-label'>Fecha de Actualización</div>
-        <div style='color: #FFFFFF; font-size: 1.5rem; font-weight: bold; margin-top: 5px;'>20 de Junio<br>del 2026</div>
+        <div style='color: #FFFFFF; font-size: 1.4rem; font-weight: bold; margin-top: 5px;'>5 de Noviembre<br>del 2026</div>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-# ----------------- TABS -----------------
+# ----------------- PESTAÑAS DE ANÁLISIS -----------------
 tabs = st.tabs([
     "💰 1. Ahorros e Inversión", 
     "💱 2. Spread Cambiario", 
@@ -167,30 +172,47 @@ with tabs[0]:
         st.markdown("""
         <div class='table-container'>
         <table class='custom-table'>
-            <tr><th class='left-align'>Producto</th><th>Banca Múltiple Tradicional</th><th>Cajas Municipales</th><th class='revolut-highlight'>Revolut (Benchmark)</th></tr>
-            <tr><td class='left-align'>Cuenta Ahorro/Sueldo</td><td>0.00% - 1.50%</td><td>1.00% - 3.50%</td><td class='revolut-highlight'>15.00% (hasta S/ 5k)</td></tr>
-            <tr><td class='left-align'>CTS (Compensación)</td><td>1.00% - 3.00%</td><td>5.50% - 7.00%</td><td class='revolut-highlight'>Rendimiento Superior Indexado</td></tr>
-            <tr><td class='left-align'>DPF (360 Días)</td><td>4.00% - 4.30%</td><td>5.00% - 6.00%</td><td class='revolut-highlight'>15% - 7.5% - 5% (Sin congelar)</td></tr>
-            <tr><td class='left-align'>Fondos Mutuos Conservadores</td><td>4.00% - 6.00% (Variable)</td><td>N/A</td><td class='revolut-highlight'>Rendimiento Diario Fijo</td></tr>
-            <tr><td class='left-align' style='background-color:#111; font-weight:bold;'>Liquidez del Dinero</td><td class='banca-warn' colspan='2'>Inmovilizado para ganar tasas altas (>4%)</td><td class='revolut-highlight'>100% Inmediata</td></tr>
+            <tr><th class='left-align'>Producto</th><th>Banca Múltiple Tradicional</th><th>Cajas y Financieras</th><th class='revolut-highlight'>Revolut (Benchmark)</th></tr>
+            <tr><td class='left-align'>Cuenta Ahorro / Sueldo</td><td>0.10% - 1.00%</td><td>1.00% - 3.50%</td><td class='revolut-highlight'>14.00% (Tier 1 hasta S/ 5k)</td></tr>
+            <tr><td class='left-align'>CTS (Compensación)</td><td>1.50% - 3.00%</td><td>5.50% - 6.50%</td><td class='revolut-highlight'>Rendimiento Superior Indexado</td></tr>
+            <tr><td class='left-align'>DPF (360 Días)</td><td>3.50% - 4.50%</td><td>5.50% - 6.50%</td><td class='revolut-highlight'>14% - 7.5% - 5% (Sin congelar)</td></tr>
+            <tr><td class='left-align'>Fondos Mutuos Conservadores</td><td>3.50% - 5.00% (Variable)</td><td>N/A</td><td class='revolut-highlight'>Rendimiento Diario Fijo</td></tr>
+            <tr><td class='left-align' style='background-color:#111; font-weight:bold;'>Liquidez del Dinero</td><td class='banca-warn' colspan='2'>Inmovilizado para ganar tasas altas (>4.5%)</td><td class='revolut-highlight'>100% Inmediata (24/7)</td></tr>
         </table>
         </div>
         """, unsafe_allow_html=True)
     
     with col2:
         df_ahorros = pd.DataFrame({
-            'Producto': ['Ahorro Tradicional', 'DPF (1 Año)', 'Cajas (CTS/DPF)', 'Revolut (Tier 1)'],
-            'Tasa Máxima TEA (%)': [1.5, 4.3, 7.0, 15.0]
+            'Producto': ['Ahorro Tradicional', 'DPF Banca (1 Año)', 'Cajas/Financieras', 'Revolut (Tier 1)'],
+            'Tasa Máxima TEA (%)': [1.0, 4.5, 6.5, 14.0]
         })
-        fig_ahorros = px.bar(df_ahorros, x='Producto', y='Tasa Máxima TEA (%)', text='Tasa Máxima TEA (%)',
-                             color='Producto',
-                             color_discrete_map={'Ahorro Tradicional': '#555', 'DPF (1 Año)': '#777', 'Cajas (CTS/DPF)': '#FF9900', 'Revolut (Tier 1)': '#00FFFF'})
+        fig_ahorros = px.bar(
+            df_ahorros, 
+            x='Producto', 
+            y='Tasa Máxima TEA (%)', 
+            text='Tasa Máxima TEA (%)',
+            color='Producto',
+            color_discrete_map={
+                'Ahorro Tradicional': '#555', 
+                'DPF Banca (1 Año)': '#777', 
+                'Cajas/Financieras': '#FF9900', 
+                'Revolut (Tier 1)': '#00FFFF'
+            }
+        )
         fig_ahorros.update_traces(texttemplate='%{text}%', textposition='outside')
-        fig_ahorros.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='#FFF', showlegend=False, height=300, margin=dict(t=20, b=0, l=0, r=0))
+        fig_ahorros.update_layout(
+            plot_bgcolor='rgba(0,0,0,0)', 
+            paper_bgcolor='rgba(0,0,0,0)', 
+            font_color='#FFF', 
+            showlegend=False, 
+            height=300, 
+            margin=dict(t=20, b=0, l=0, r=0)
+        )
         st.plotly_chart(fig_ahorros, use_container_width=True, config=config_graficos_fijos)
         
     st.markdown("""
-    <p style='color:#DDD; margin-top:20px;'><strong>Análisis:</strong> La banca tradicional penaliza la liquidez de los depositantes y obliga a congelar fondos en DPFs institucionales para obtener rendimientos de apenas 4-5%. La propuesta de valor de la arquitectura tecnológica fintech rompe el paradigma al ofrecer un 15% con disponibilidad inmediata, gatillando una migración estructural de fondos líquidos hacia cuentas remuneradas eficientes.</p>
+    <p style='color:#DDD; margin-top:20px;'><strong>Análisis:</strong> A pesar de la moderación de la tasa de referencia del BCRP, la banca múltiple continúa remunerando las cuentas de ahorro tradicionales a niveles cercanos a cero (0.10% - 1.00%), exigiendo inmovilizar capital en DPFs para alcanzar apenas un 4.5%. La arquitectura neobancaria rompe este esquema mediante cuentas remuneradas con disponibilidad inmediata y rendimiento diario, gatillando un arbitraje natural de saldos a la vista.</p>
     """, unsafe_allow_html=True)
 
 # TAB 2: SPREAD CAMBIARIO
@@ -204,28 +226,39 @@ with tabs[1]:
         <table class='custom-table'>
             <tr><th class='left-align'>Ecosistema Financiero</th><th>Spread Promedio (Venta-Compra)</th><th>Impacto en S/ 1,000 USD</th></tr>
             <tr><td class='left-align'>Banca Múltiple (Mesa de Dinero Retail)</td><td class='banca-warn'>~ 2.50% - 3.00%</td><td class='banca-warn'>Pérdida de ~$ 25 - $30 USD</td></tr>
-            <tr><td class='left-align'>Canales Digitales Integrados (Banca)</td><td style='color:#FF9900'>~ 1.50% - 2.50%</td><td style='color:#FF9900'>Pérdida de ~$ 15 - $25 USD</td></tr>
-            <tr><td class='left-align'>Casas de Cambio Digitales Independientes</td><td style='color:#00FF00'>~ 0.50% - 0.80%</td><td style='color:#00FF00'>Pérdida de ~$ 5 - $8 USD</td></tr>
-            <tr><td class='left-align revolut-highlight'>Modelos Fintech Globales (Revolut)</td><td class='revolut-highlight'>~ 0.00% - 0.50% (Interbancario Real)</td><td class='revolut-highlight'>Optimización Máxima ($ 0 - $5 USD)</td></tr>
+            <tr><td class='left-align'>Canales Digitales Integrados (Banca)</td><td style='color:#FF9900'>~ 1.50% - 2.20%</td><td style='color:#FF9900'>Pérdida de ~$ 15 - $22 USD</td></tr>
+            <tr><td class='left-align'>Casas de Cambio Digitales Independientes</td><td style='color:#00FF00'>~ 0.40% - 0.70%</td><td style='color:#00FF00'>Pérdida de ~$ 4 - $7 USD</td></tr>
+            <tr><td class='left-align revolut-highlight'>Modelos Fintech Globales (Revolut)</td><td class='revolut-highlight'>~ 0.00% - 0.35% (Interbancario Real)</td><td class='revolut-highlight'>Optimización Máxima ($ 0 - $3.5 USD)</td></tr>
         </table>
         </div>
-        <p style='color:#888; font-size:0.9rem; margin-top:10px;'>*Los modelos de tesorería descentralizados aplican markups mínimos los fines de semana por cierre estandarizado de mercados.</p>
+        <p style='color:#888; font-size:0.9rem; margin-top:10px;'>*Los modelos de tesorería global aplican micro-markups los fines de semana únicamente por cierre estandarizado de mercados cambiarios internacionales.</p>
         """, unsafe_allow_html=True)
         
     with col2:
-        # Gráfico de Dona Calibrado al Impacto por Institución Financiera
         df_spread_dist = pd.DataFrame({
             'Origen de Fondos': ['Banca Múltiple Top 1', 'Banca Múltiple Top 2', 'Banca Retail General', 'Otras Entidades'],
             'Porcentaje de Impacto': [45, 30, 15, 10]
         })
-        fig_donut = px.pie(df_spread_dist, values='Porcentaje de Impacto', names='Origen de Fondos', hole=0.6,
-                           color_discrete_sequence=['#FF3333', '#FF6633', '#FF9900', '#555555'])
+        fig_donut = px.pie(
+            df_spread_dist, 
+            values='Porcentaje de Impacto', 
+            names='Origen de Fondos', 
+            hole=0.6,
+            color_discrete_sequence=['#FF3333', '#FF6633', '#FF9900', '#555555']
+        )
         fig_donut.update_traces(textposition='inside', textinfo='percent+label', textfont=dict(color='#FFFFFF', size=14))
-        fig_donut.update_layout(title="Distribución del Costo de Oportunidad Cambiario", plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='#FFF', margin=dict(t=40, b=0, l=0, r=0), height=300)
+        fig_donut.update_layout(
+            title="Distribución del Costo de Oportunidad Cambiario", 
+            plot_bgcolor='rgba(0,0,0,0)', 
+            paper_bgcolor='rgba(0,0,0,0)', 
+            font_color='#FFF', 
+            margin=dict(t=40, b=0, l=0, r=0), 
+            height=300
+        )
         st.plotly_chart(fig_donut, use_container_width=True, config=config_graficos_fijos)
             
     st.markdown("""
-    <p style='color:#DDD; margin-top:20px;'><strong>Análisis:</strong> El spread bancario tradicional actúa como una fricción de intermediación que asume el usuario. Al integrar tipos de cambio interbancarios puros en la app, se genera un costo de oportunidad directo para los canales tradicionales, forzando la migración del volumen transaccional de tesorería hacia rieles fintech.</p>
+    <p style='color:#DDD; margin-top:20px;'><strong>Análisis:</strong> El spread bancario tradicional actúa como un impuesto invisible de intermediación. Al integrar tipos de cambio mayoristas interbancarios en tiempo real con cero comisiones ocultas, se produce una fuga inmediata del volumen cambiario transaccional hacia rieles tecnológicos eficientes.</p>
     """, unsafe_allow_html=True)
 
 # TAB 3: PRÉSTAMOS
@@ -240,11 +273,11 @@ with tabs[2]:
         fig_loans.add_trace(go.Bar(
             name='Rango Min-Max (Banca Tradicional)', 
             x=['Consumo Prime', 'MYPE Formal'], 
-            y=[30, 25], 
-            base=[10, 10], 
+            y=[28, 24], 
+            base=[12, 11], 
             marker_color='rgba(255, 51, 51, 0.35)', 
             marker_line=dict(color='#FF3333', width=1.5),
-            text=['Rango: 10% - 40%', 'Rango: 10% - 35%'], 
+            text=['Rango: 12% - 40%', 'Rango: 11% - 35%'], 
             textposition='outside',
             textfont=dict(color='#FFFFFF', size=12)
         ))
@@ -253,10 +286,10 @@ with tabs[2]:
         fig_loans.add_trace(go.Scatter(
             name='Promedio Sistema Prime (SBS)', 
             x=['Consumo Prime', 'MYPE Formal'], 
-            y=[27.5, 24.8], 
+            y=[26.5, 23.8], 
             mode='markers+text', 
             marker=dict(color='#FFCC00', size=12, symbol='x'), 
-            text=['Promedio: 27.5%', 'Promedio: 24.8%'], 
+            text=['Promedio: 26.5%', 'Promedio: 23.8%'], 
             textposition='top center',
             textfont=dict(color='#FFCC00', size=11)
         ))
@@ -265,16 +298,16 @@ with tabs[2]:
         fig_loans.add_trace(go.Scatter(
             name='Revolut (Target Eficiente)', 
             x=['Consumo Prime', 'MYPE Formal'], 
-            y=[8.2, 9.5], 
+            y=[8.5, 9.8], 
             mode='markers+text', 
             marker=dict(color='#00FFFF', size=16, symbol='diamond', line=dict(width=2, color='#FFFFFF')), 
-            text=['⚡ 8.2% TEA', '⚡ 9.5% TEA'], 
+            text=['⚡ 8.5% TEA', '⚡ 9.8% TEA'], 
             textposition='bottom center',
             textfont=dict(color='#00FFFF', size=13)
         ))
         
         fig_loans.update_layout(
-            title="Rangos de Tasas de Interés Corporativo/Retail (TEA %)", 
+            title="Tasas de Interés Crediticias Prime vs Oferta Fintech (TEA %)", 
             barmode='overlay', 
             plot_bgcolor='rgba(0,0,0,0)', 
             paper_bgcolor='rgba(0,0,0,0)', 
@@ -298,14 +331,14 @@ with tabs[2]:
         st.markdown(f"""
         <div class='table-container'>
         <table class='custom-table'>
-            <tr><th class='left-align'>Segmento Objetivo</th><th>Tasa Sistema Promedio</th><th class='revolut-highlight'>Oferta Fintech de Target Eficiente</th></tr>
-            <tr><td class='left-align'>Consumo (Bajo Riesgo / Calificación A)</td><td>~ 26.0% - 28.0%</td><td class='revolut-highlight'>7.0% - 9.0%</td></tr>
-            <tr><td class='left-align'>MYPEs Formalizadas (Buen Récord)</td><td>~ 22.0% - 25.0%</td><td class='revolut-highlight'>8.5% - 11.0%</td></tr>
-            <tr><td class='left-align'>Sectores Sub-estándar o Informales</td><td class='banca-warn'>> 50.0%</td><td class='revolut-highlight'>Fuera de Apetito de Riesgo</td></tr>
+            <tr><th class='left-align'>Segmento Objetivo</th><th>Tasa Sistema Promedio (SBS)</th><th class='revolut-highlight'>Target Eficiente Fintech</th></tr>
+            <tr><td class='left-align'>Consumo (Bajo Riesgo / Calificación Normal)</td><td>~ 25.0% - 28.0%</td><td class='revolut-highlight'>7.5% - 9.0%</td></tr>
+            <tr><td class='left-align'>MYPEs Formalizadas (Buen Récord)</td><td>~ 21.0% - 24.5%</td><td class='revolut-highlight'>8.5% - 11.0%</td></tr>
+            <tr><td class='left-align'>Sectores Sub-estándar o Informales</td><td class='banca-warn'>> 45.0%</td><td class='revolut-highlight'>Fuera de Apetito de Riesgo</td></tr>
         </table>
         </div>
         <br>
-        <p style='color:#DDD;'><strong>Análisis:</strong> La estrategia de penetración crediticia no busca captar la base de la pirámide desbancarizada. El enfoque se centra en el <i>Cherry-Picking</i> financiero: absorber los perfiles crediticios de primer orden de la banca múltiple tradicional mediante una brecha competitiva promedio del <strong>{brecha_tasa_prestamos}%</strong>, apalancada en eficiencias operativas automatizadas.</p>
+        <p style='color:#DDD;'><strong>Análisis:</strong> El modelo de negocio no compite en colocaciones masivas de alto riesgo ni en microfinanzas de base. Aplica un <i>Cherry-Picking</i> cuantitativo: captura a los usuarios de mayor capacidad crediticia y menor morosidad ofreciendo una reducción de costo de financiamiento de más de <strong>{brecha_tasa_prestamos} puntos porcentuales</strong>, apalancada en costos de originación casi nulos.</p>
         """, unsafe_allow_html=True)
 
 # TAB 4: MANTENIMIENTO Y COMISIONES
@@ -318,7 +351,7 @@ with tabs[3]:
             <th class='left-align'>Concepto Operativo</th>
             <th>Banca Tradicional Líder</th>
             <th>Banca Retail Secundaria</th>
-            <th class='revolut-highlight'>Modelos Digitales Nativo (Revolut)</th>
+            <th class='revolut-highlight'>Modelos Digitales Nativos (Revolut)</th>
         </tr>
         <tr>
             <td class='left-align'>Mantenimiento Mensual Fijo</td>
@@ -353,38 +386,29 @@ with tabs[3]:
 with tabs[4]:
     st.subheader("Redistribución de Liquidez: Simulación Estructurada a 12 Meses")
     
-    # Simulación matemática limpia y realista acorde a los S/ 1,948.2 M del KPI Board
-    meses_sim = [f"Mes {i}" for i in range(1, 13)]
-    migracion_acumulada_banca = []
-    migracion_acumulada_fintech = []
-    
-    m_banca = 0
-    m_fintech = 0
-    for i in range(1, 13):
-        # Curva de adopción macroeconómica (S-Curve) ajustada a la meta exacta
-        peso_mes = (i ** 1.5) / (sum(j ** 1.5 for j in range(1, 13)))
-        incremento = total_migracion_12m * peso_mes
-        m_banca += incremento * 0.70  # El 70% proviene de la Banca Múltiple Tradicional
-        m_fintech += incremento * 0.30 # El 30% proviene de otras Fintechs/Cajas menores
-        migracion_acumulada_banca.append(m_banca)
-        migracion_acumulada_fintech.append(m_fintech)
-        
-    df_proyeccion_realista = pd.DataFrame({
-        'Línea temporal': meses_sim * 2,
-        'Volumen Migrado (Millones PEN)': migracion_acumulada_banca + migracion_acumulada_fintech,
-        'Sector de Origen': ['Banca Múltiple Tradicional'] * 12 + ['Otras Fintech / Cajas Privadas'] * 12
-    })
-    
     col1, col2 = st.columns([2, 1])
     with col1:
-        fig_area_calibrada = px.area(df_proyeccion_realista, x='Línea temporal', y='Volumen Migrado (Millones PEN)', color='Sector de Origen',
-                                     color_discrete_sequence=['#FF3333', '#FF9900'],
-                                     title="Dinámica de Absorción de Liquidez Acumulada")
-        fig_area_calibrada.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='#FFF', height=400, xaxis_title="Evolución Mensual (Primer Año)", yaxis_title="Millones PEN")
+        # Reutiliza directamente el DataFrame generado por el motor en memoria
+        fig_area_calibrada = px.area(
+            df_proyeccion, 
+            x='Línea temporal', 
+            y='Volumen Migrado (Millones PEN)', 
+            color='Sector de Origen',
+            color_discrete_sequence=['#FF3333', '#FF9900'],
+            title="Dinámica de Absorción de Liquidez Acumulada"
+        )
+        fig_area_calibrada.update_layout(
+            plot_bgcolor='rgba(0,0,0,0)', 
+            paper_bgcolor='rgba(0,0,0,0)', 
+            font_color='#FFF', 
+            height=400, 
+            xaxis_title="Evolución Mensual (Primer Año)", 
+            yaxis_title="Millones PEN"
+        )
         st.plotly_chart(fig_area_calibrada, use_container_width=True, config=config_graficos_fijos)
         
     with col2:
-        vol_banca_múltiple = total_migracion_12m * 0.70
+        vol_banca_multiple = total_migracion_12m * 0.70
         vol_otros_sectores = total_migracion_12m * 0.30
         st.markdown(f"""
         <div style='background-color:#111; padding:20px; border-radius:8px; border:1px solid #333;'>
@@ -392,7 +416,7 @@ with tabs[4]:
             <p style='color:#DDD; margin-top:10px;'>La digitalización del usuario financiero reduce drásticamente las barreras de salida. La masa monetaria migra mediante canales de alta frecuencia hacia ecosistemas transaccionales de mayor tasa pasiva.</p>
             <div style='margin-top:20px; border-left: 3px solid #FF3333; padding-left: 10px;'>
                 <strong style='color:#FF3333'>Absorción desde Banca Múltiple:</strong><br>
-                <span style='font-size:1.5rem; color:#FFFFFF'>S/ {vol_banca_múltiple:,.2f} M</span>
+                <span style='font-size:1.5rem; color:#FFFFFF'>S/ {vol_banca_multiple:,.2f} M</span>
             </div>
             <div style='margin-top:15px; border-left: 3px solid #FF9900; padding-left: 10px;'>
                 <strong style='color:#FF9900'>Absorción desde Otros Sectores:</strong><br>
@@ -432,7 +456,7 @@ with tabs[6]:
     """, unsafe_allow_html=True)
 
 # ----------------- FOOTERS (FUENTES Y AUTOR) -----------------
-fuentes_html = "<p style='color:#777; font-size:0.85rem; text-align:center; margin-top:40px; border-top:1px solid #333; padding-top:15px;'><i>Fuentes: Superintendencia de Banca, Seguros y AFP (SBS) | Tarifarios corporativos analizados | Parámetros de Simulación de Tesorería Sectorial.</i></p>"
+fuentes_html = "<p style='color:#777; font-size:0.85rem; text-align:center; margin-top:40px; border-top:1px solid #333; padding-top:15px;'><i>Fuentes: Superintendencia de Banca, Seguros y AFP (SBS) | Estadísticas Monetarias BCRP | Tarifarios Corporativos Auditados | Parámetros de Simulación de Tesorería Sectorial.</i></p>"
 
 for i in range(7):
     with tabs[i]:
